@@ -8,13 +8,13 @@ esm2-multi-gpu-service/<br>
     &emsp;&emsp;workflows/<br>
       &emsp;&emsp;&emsp;ci.yml<br>
     &emsp;app/<br>
-      &emsp;&emsp;'__init__'.py<br>
+      &emsp;&emsp;\_\_init\_\_.py<br>
       &emsp;&emsp;main.py<br>
       &emsp;&emsp;model_manager.py<br>
       &emsp;&emsp;schemas.py<br>
       &emsp;&emsp;config.py<br>
     &emsp;tests/<br>
-      &emsp;&emsp;'__init__'.py<br>
+      &emsp;&emsp;\_\_init\_\_.py<br>
       &emsp;&emsp;conftest.py<br>
       &emsp;&emsp;test_api.py<br>
       &emsp;&emsp;test_gpu_distributor.py<br>
