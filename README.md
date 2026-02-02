@@ -1,20 +1,20 @@
 # ESM2_MultiGPU_Inference<br>
 MLOps-ready FastAPI inference service for ESM-2 with automatic multi-GPU scaling, Kubernetes manifests, CI/CD, and benchmarks.
 <br>
-Complete Project Structure:<br>
+<br>__Complete Project Structure:__<br>
 <br>
-esm2-multi-gpu-service/
+esm2-multi-gpu-service/<br>
   &emsp;.github/<br>
     &emsp;&emsp;workflows/<br>
       &emsp;&emsp;&emsp;ci.yml<br>
     &emsp;app/<br>
-      &emsp;&emsp;__init__.py<br>
+      &emsp;&emsp;'__init__'.py<br>
       &emsp;&emsp;main.py<br>
       &emsp;&emsp;model_manager.py<br>
       &emsp;&emsp;schemas.py<br>
       &emsp;&emsp;config.py<br>
     &emsp;tests/<br>
-      &emsp;&emsp;__init__.py<br>
+      &emsp;&emsp;'__init__'.py<br>
       &emsp;&emsp;conftest.py<br>
       &emsp;&emsp;test_api.py<br>
       &emsp;&emsp;test_gpu_distributor.py<br>
