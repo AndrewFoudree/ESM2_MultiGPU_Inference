@@ -4,7 +4,7 @@ MLOps-ready FastAPI inference service for ESM-2 with automatic multi-GPU scaling
 Complete Project Structure:<br>
 <br>
 <p>esm2-multi-gpu-service</p>/<br>
-  <p>&emsp.github/</p><br>
+  &emsp;.github/<br>
     workflows/<br>
       ci.yml<br>
     app/<br>
