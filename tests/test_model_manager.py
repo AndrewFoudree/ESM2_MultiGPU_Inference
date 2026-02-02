@@ -216,7 +216,10 @@ class TestModelManagerInference:
 
         manager._run_inference_on_gpu = mock_inference
 
-        sequences = [f"MKTVRQERL{i}" for i in range(8)]
+        sequences = [
+            "MKTVRQERLKA", "MKTVRQERLKC", "MKTVRQERLKD", "MKTVRQERLKE",
+            "MKTVRQERLKF", "MKTVRQERLKG", "MKTVRQERLKH", "MKTVRQERLKI"
+        ]
         result = await manager.predict_batch(sequences=sequences)
 
         assert result.total_sequences == 8
@@ -256,12 +259,16 @@ class TestModelManagerInference:
         manager._run_inference_on_gpu = mock_inference
 
         # Create sequences with identifiable content
-        sequences = [f"SEQ{i}MKTVRQ" for i in range(10)]
+        sequences = [
+            "ACMKTVRQAA", "ACMKTVRQCC", "ACMKTVRQDD", "ACMKTVRQEE",
+            "ACMKTVRQFF", "ACMKTVRQGG", "ACMKTVRQHH", "ACMKTVRQII",
+            "ACMKTVRQKK", "ACMKTVRQLL"
+        ]
         result = await manager.predict_batch(sequences=sequences)
 
         # Verify order is preserved
         for i, seq_result in enumerate(result.results):
-            assert seq_result.sequence == f"SEQ{i}MKTVRQ"
+            assert seq_result.sequence == sequences[i]
 
     @pytest.mark.asyncio
     async def test_predict_batch_distribution_info(
