@@ -1,37 +1,37 @@
-# ESM2_MultiGPU_Inference
+# ESM2_MultiGPU_Inference<br>
 MLOps-ready FastAPI inference service for ESM-2 with automatic multi-GPU scaling, Kubernetes manifests, CI/CD, and benchmarks.
-
-Complete Project Structure:
-
-esm2-multi-gpu-service/
-  .github/
-    workflows/
-      ci.yml
-    app/
-      __init__.py
-      main.py
-      model_manager.py
-      schemas.py
-      config.py
-    tests/
-      __init__.py
-      conftest.py
-      test_api.py
-      test_gpu_distributor.py
-      test_model_manager.py
-    k8s/
-      namespace.yaml
-      deployment.yaml
-      service.yaml    
-      configmap.yaml
-      hpa.yaml
-      ingress.yaml
-    scripts/
-      benchmark.py
-    Dockerfile
-    requirements.txt
-    requirements-dev.txt
-    pyproject.toml
-    .dockerignore
+<br>
+Complete Project Structure:<br>
+<br>
+esm2-multi-gpu-service/<br>
+  .github/<br>
+    workflows/<br>
+      ci.yml<br>
+    app/<br>
+      __init__.py<br>
+      main.py<br>
+      model_manager.py<br>
+      schemas.py<br>
+      config.py<br>
+    tests/<br>
+      __init__.py<br>
+      conftest.py<br>
+      test_api.py<br>
+      test_gpu_distributor.py<br>
+      test_model_manager.py<br>
+    k8s/<br>
+      namespace.yaml<br>
+      deployment.yaml<br>
+      service.yaml<br>    
+      configmap.yaml<br>
+      hpa.yaml<br>
+      ingress.yaml<br>
+    scripts/<br>
+      benchmark.py<br>
+    Dockerfile<br>
+    requirements.txt<br>
+    requirements-dev.txt<br>
+    pyproject.toml<br>
+    .dockerignore<br>
     README.md
     
