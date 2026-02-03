@@ -1,0 +1,35 @@
+# Kube-linter configuration for ESM-2 Multi-GPU Inference Service
+# https://docs.kubelinter.io
+
+checks:
+  # Disable checks that don't apply to GPU workloads
+  exclude:
+    # GPU containers often need elevated permissions for NVIDIA driver access
+    - "run-as-non-root"  # We do run as non-root, but init containers may not
+    - "no-read-only-root-fs"  # Model cache needs write access
+    - "unset-cpu-requirements"  # We set CPU, but it's high for GPU workloads
+    - "unset-memory-requirements"  # We set memory, but it's high
+
+  # Include important security checks
+  include:
+    - "dangling-service"
+    - "deprecated-service-account-field"
+    - "docker-sock"
+    - "drop-net-raw-capability"
+    - "env-var-secret"
+    - "exposed-services"
+    - "host-ipc"
+    - "host-network"
+    - "host-pid"
+    - "mismatching-selector"
+    - "no-anti-affinity"
+    - "no-extensions-v1beta"
+    - "privilege-escalation-container"
+    - "privileged-container"
+    - "sensitive-host-mounts"
+    - "ssh-port"
+    - "unsafe-proc-mount"
+    - "unsafe-sysctls"
+    - "writable-host-mount"
+
+customChecks: []

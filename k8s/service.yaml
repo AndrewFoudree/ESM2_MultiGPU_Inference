@@ -1,0 +1,42 @@
+---
+# Service for ESM-2 Multi-GPU Inference
+# Exposes the inference API within the cluster
+apiVersion: v1
+kind: Service
+metadata:
+  name: esm2-inference
+  namespace: esm2-inference
+  labels:
+    app.kubernetes.io/name: esm2-inference
+    app.kubernetes.io/component: service
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: esm2-inference
+  ports:
+    - name: http
+      port: 80
+      targetPort: http
+      protocol: TCP
+  # Session affinity for consistent routing (optional)
+  sessionAffinity: None
+---
+# Headless Service for direct pod access (optional, for debugging)
+apiVersion: v1
+kind: Service
+metadata:
+  name: esm2-inference-headless
+  namespace: esm2-inference
+  labels:
+    app.kubernetes.io/name: esm2-inference
+    app.kubernetes.io/component: service-headless
+spec:
+  type: ClusterIP
+  clusterIP: None
+  selector:
+    app.kubernetes.io/name: esm2-inference
+  ports:
+    - name: http
+      port: 8000
+      targetPort: http
+      protocol: TCP

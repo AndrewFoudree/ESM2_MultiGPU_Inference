@@ -1,0 +1,12 @@
+---
+# Namespace for ESM-2 Multi-GPU Inference Service
+# Isolates all resources for the ML inference workload
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: esm2-inference
+  labels:
+    app.kubernetes.io/name: esm2-inference
+    app.kubernetes.io/component: namespace
+    app.kubernetes.io/part-of: esm2-multi-gpu-service
+    environment: production

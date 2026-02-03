@@ -1,0 +1,31 @@
+---
+# ConfigMap for ESM-2 Multi-GPU Inference Service
+# Contains non-sensitive configuration parameters
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: esm2-config
+  namespace: esm2-inference
+  labels:
+    app.kubernetes.io/name: esm2-inference
+    app.kubernetes.io/component: config
+data:
+  # Model configuration
+  MODEL_NAME: "facebook/esm2_t33_650M_UR50D"
+  MAX_BATCH_SIZE: "64"
+  MAX_SEQUENCE_LENGTH: "1024"
+  
+  # Server configuration
+  HOST: "0.0.0.0"
+  PORT: "8000"
+  WORKERS: "1"  # Single worker for GPU workloads
+  
+  # Logging
+  LOG_LEVEL: "INFO"
+  
+  # Health check configuration
+  STARTUP_TIMEOUT_SECONDS: "300"
+  
+  # HuggingFace cache directory (uses emptyDir volume)
+  HF_HOME: "/app/.cache/huggingface"
+  TRANSFORMERS_CACHE: "/app/.cache/huggingface"

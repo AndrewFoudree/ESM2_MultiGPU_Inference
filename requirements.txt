@@ -1,0 +1,20 @@
+# ==============================================================================
+# ESM-2 Multi-GPU Inference Service - Production Dependencies
+# ==============================================================================
+
+# Web framework
+fastapi==0.109.0
+uvicorn[standard]==0.27.0
+pydantic==2.5.3
+pydantic-settings==2.1.0
+
+# ML/Deep Learning
+# Note: PyTorch is installed separately in Dockerfile with CUDA support
+# torch==2.1.2  # Installed via --extra-index-url for CUDA version
+transformers==4.36.2
+
+# Async support
+httpx==0.26.0
+
+# Utilities
+numpy>=1.24.0,<2.0.0

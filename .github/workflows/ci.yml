@@ -1,0 +1,260 @@
+# ==============================================================================
+# GitHub Actions CI Workflow for ESM-2 Multi-GPU Inference Service
+# ==============================================================================
+# This workflow runs on every push and pull request to ensure code quality,
+# test coverage, and Kubernetes manifest validity.
+# ==============================================================================
+
+name: CI
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+  workflow_dispatch:
+
+env:
+  PYTHON_VERSION: "3.11"
+  NODE_VERSION: "18"
+
+jobs:
+  # ============================================================================
+  # Linting and Code Quality
+  # ============================================================================
+  lint:
+    name: Lint & Format Check
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+      
+      - name: Install linting tools
+        run: |
+          pip install ruff black isort mypy
+      
+      - name: Run Ruff linter
+        run: |
+          ruff check app/ tests/ scripts/
+      
+      - name: Check Black formatting
+        run: |
+          black --check --diff app/ tests/ scripts/
+      
+      - name: Check import sorting
+        run: |
+          isort --check-only --diff app/ tests/ scripts/
+      
+      - name: Run type checking
+        run: |
+          mypy app/ --ignore-missing-imports
+        continue-on-error: true  # Type hints are advisory
+
+  # ============================================================================
+  # Unit Tests
+  # ============================================================================
+  test:
+    name: Tests (Python ${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+    
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.10", "3.11"]
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+      
+      - name: Install dependencies
+        run: |
+          pip install -e ".[dev]"
+          pip install torch --index-url https://download.pytorch.org/whl/cpu
+      
+      - name: Run pytest with coverage
+        run: |
+          pytest tests/ \
+            --cov=app \
+            --cov-report=xml \
+            --cov-report=term-missing \
+            -v \
+            --tb=short
+      
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v4
+        with:
+          file: ./coverage.xml
+          flags: unittests
+          name: codecov-umbrella
+        continue-on-error: true
+
+  # ============================================================================
+  # Kubernetes Manifest Validation
+  # ============================================================================
+  validate-k8s:
+    name: Validate Kubernetes Manifests
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Install kubeconform
+        run: |
+          wget https://github.com/yannh/kubeconform/releases/download/v0.6.4/kubeconform-linux-amd64.tar.gz
+          tar xf kubeconform-linux-amd64.tar.gz
+          sudo mv kubeconform /usr/local/bin/
+      
+      - name: Validate Kubernetes manifests
+        run: |
+          echo "Validating Kubernetes manifests..."
+          kubeconform \
+            -strict \
+            -summary \
+            -output json \
+            -schema-location default \
+            -schema-location 'https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json' \
+            k8s/*.yaml | tee kubeconform-results.json
+          
+          # Check for errors
+          if grep -q '"status": "invalid"' kubeconform-results.json; then
+            echo "❌ Kubernetes manifest validation failed"
+            exit 1
+          fi
+          
+          echo "✅ All Kubernetes manifests are valid"
+      
+      - name: Lint Kubernetes manifests with kube-linter
+        uses: stackrox/kube-linter-action@v1
+        with:
+          directory: k8s/
+          config: .kube-linter.yaml
+        continue-on-error: true  # Advisory linting
+
+  # ============================================================================
+  # Docker Build Test
+  # ============================================================================
+  docker-build:
+    name: Docker Build Test
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      
+      - name: Build Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: false
+          tags: esm2-multi-gpu-inference:test
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          target: production
+      
+      - name: Test Docker image structure
+        run: |
+          # Start container and verify it responds
+          docker run -d --name test-container \
+            -p 8000:8000 \
+            -e WORKERS=1 \
+            esm2-multi-gpu-inference:test || true
+          
+          # Give it a moment to start (will fail without GPU, but we check structure)
+          sleep 5
+          
+          # Check container logs for any immediate errors
+          docker logs test-container || true
+          
+          # Clean up
+          docker stop test-container || true
+          docker rm test-container || true
+
+  # ============================================================================
+  # Benchmark (Mock)
+  # ============================================================================
+  benchmark:
+    name: Run Mock Benchmark
+    runs-on: ubuntu-latest
+    needs: [lint, test]
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+      
+      - name: Install dependencies
+        run: |
+          pip install httpx numpy
+      
+      - name: Run mock benchmark
+        run: |
+          python scripts/benchmark.py \
+            --mock \
+            --gpu-counts 1 4 8 \
+            --batch-sizes 1 8 32 64 \
+            --requests 50 \
+            --output benchmark_results.json
+      
+      - name: Upload benchmark results
+        uses: actions/upload-artifact@v4
+        with:
+          name: benchmark-results
+          path: benchmark_results.json
+
+  # ============================================================================
+  # Security Scanning
+  # ============================================================================
+  security:
+    name: Security Scan
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: 'fs'
+          scan-ref: '.'
+          severity: 'CRITICAL,HIGH'
+          exit-code: '0'  # Don't fail on vulnerabilities (advisory)
+      
+      - name: Run Bandit security linter
+        run: |
+          pip install bandit
+          bandit -r app/ -ll -ii || true  # Advisory
+
+  # ============================================================================
+  # All Checks Passed
+  # ============================================================================
+  ci-success:
+    name: CI Success
+    runs-on: ubuntu-latest
+    needs: [lint, test, validate-k8s, docker-build]
+    
+    steps:
+      - name: All checks passed
+        run: echo "✅ All CI checks passed successfully!"

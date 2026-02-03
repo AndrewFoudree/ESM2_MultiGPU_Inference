@@ -1,0 +1,228 @@
+---
+# Deployment for ESM-2 Multi-GPU Inference Service
+# Configured for 8-GPU instances (g5.48xlarge or p4d.24xlarge)
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: esm2-inference
+  namespace: esm2-inference
+  labels:
+    app.kubernetes.io/name: esm2-inference
+    app.kubernetes.io/component: inference
+    app.kubernetes.io/version: "1.0.0"
+spec:
+  # Single replica - each pod uses all 8 GPUs
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: esm2-inference
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: esm2-inference
+        app.kubernetes.io/component: inference
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8000"
+        prometheus.io/path: "/health"
+    spec:
+      # ============================================================
+      # GPU Node Selection and Tolerations
+      # ============================================================
+      
+      # Select nodes with 8 GPUs (g5.48xlarge or p4d.24xlarge)
+      nodeSelector:
+        node.kubernetes.io/instance-type: g5.48xlarge
+      
+      # Tolerate GPU node taints
+      tolerations:
+        - key: nvidia.com/gpu
+          operator: Exists
+          effect: NoSchedule
+        - key: aws.amazon.com/gpu
+          operator: Exists
+          effect: NoSchedule
+        - key: dedicated
+          operator: Equal
+          value: gpu-workload
+          effect: NoSchedule
+      
+      # ============================================================
+      # Service Account and Security
+      # ============================================================
+      serviceAccountName: default
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        fsGroup: 1000
+      
+      # ============================================================
+      # Init Container: Model Pre-download (Optional)
+      # ============================================================
+      initContainers:
+        - name: model-downloader
+          image: python:3.11-slim
+          command:
+            - /bin/sh
+            - -c
+            - |
+              pip install transformers torch --quiet
+              python -c "
+              from transformers import AutoModel, AutoTokenizer
+              model_name = 'facebook/esm2_t33_650M_UR50D'
+              print(f'Downloading {model_name}...')
+              AutoTokenizer.from_pretrained(model_name)
+              AutoModel.from_pretrained(model_name)
+              print('Model download complete')
+              "
+          volumeMounts:
+            - name: model-cache
+              mountPath: /root/.cache/huggingface
+          resources:
+            requests:
+              memory: "4Gi"
+              cpu: "2"
+            limits:
+              memory: "8Gi"
+              cpu: "4"
+      
+      # ============================================================
+      # Main Container
+      # ============================================================
+      containers:
+        - name: esm2-inference
+          image: esm2-multi-gpu-inference:latest
+          imagePullPolicy: Always
+          
+          ports:
+            - name: http
+              containerPort: 8000
+              protocol: TCP
+          
+          # Environment from ConfigMap
+          envFrom:
+            - configMapRef:
+                name: esm2-config
+          
+          # Additional environment variables
+          env:
+            # NVIDIA CUDA configuration
+            - name: NVIDIA_VISIBLE_DEVICES
+              value: "all"
+            - name: NVIDIA_DRIVER_CAPABILITIES
+              value: "compute,utility"
+            # PyTorch CUDA settings
+            - name: CUDA_DEVICE_ORDER
+              value: "PCI_BUS_ID"
+            # NCCL settings for multi-GPU communication
+            - name: NCCL_DEBUG
+              value: "WARN"
+            - name: NCCL_IB_DISABLE
+              value: "0"
+            - name: NCCL_NET_GDR_LEVEL
+              value: "2"
+          
+          # ========================================================
+          # Resource Requests and Limits
+          # ========================================================
+          resources:
+            requests:
+              # Request all 8 GPUs
+              nvidia.com/gpu: "8"
+              # Memory: ~50% of g5.48xlarge (768GB total)
+              memory: "384Gi"
+              # CPU: ~50% of g5.48xlarge (192 vCPUs)
+              cpu: "96"
+            limits:
+              # Hard limit on GPUs
+              nvidia.com/gpu: "8"
+              # Memory limit
+              memory: "512Gi"
+              # CPU limit
+              cpu: "128"
+          
+          # ========================================================
+          # Volume Mounts
+          # ========================================================
+          volumeMounts:
+            # Shared memory for inter-GPU communication (NCCL)
+            - name: shm
+              mountPath: /dev/shm
+            # Model cache
+            - name: model-cache
+              mountPath: /app/.cache/huggingface
+          
+          # ========================================================
+          # Probes
+          # ========================================================
+          
+          # Startup probe: Allow up to 5 minutes for model loading
+          # Model loading can take 2-4 minutes on cold start
+          startupProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 30  # 30 * 10s = 5 minutes max
+            successThreshold: 1
+          
+          # Liveness probe: Check if service is responsive
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 30
+            timeoutSeconds: 10
+            failureThreshold: 3
+            successThreshold: 1
+          
+          # Readiness probe: Check if ready to serve traffic
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+            successThreshold: 1
+          
+          # Security context for container
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: false
+            capabilities:
+              drop:
+                - ALL
+      
+      # ============================================================
+      # Volumes
+      # ============================================================
+      volumes:
+        # Shared memory volume for NCCL inter-GPU communication
+        # Critical for multi-GPU PyTorch operations
+        - name: shm
+          emptyDir:
+            medium: Memory
+            sizeLimit: 64Gi  # Large SHM for 8 GPUs
+        
+        # Model cache volume
+        - name: model-cache
+          emptyDir:
+            sizeLimit: 20Gi
+      
+      # ============================================================
+      # Pod Configuration
+      # ============================================================
+      
+      # Graceful shutdown: Allow time for in-flight requests
+      terminationGracePeriodSeconds: 60
+      
+      # DNS policy
+      dnsPolicy: ClusterFirst
+      
+      # Restart policy
+      restartPolicy: Always

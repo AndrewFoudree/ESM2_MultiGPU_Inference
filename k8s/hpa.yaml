@@ -1,0 +1,77 @@
+---
+# Horizontal Pod Autoscaler for ESM-2 Inference
+# Note: For GPU workloads, scaling is typically vertical (more GPUs per pod)
+# or by adding more pods with fixed GPU allocations.
+# This HPA is configured conservatively for demonstration.
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: esm2-inference
+  namespace: esm2-inference
+  labels:
+    app.kubernetes.io/name: esm2-inference
+    app.kubernetes.io/component: hpa
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: esm2-inference
+  
+  # Scaling bounds
+  # Note: Each replica requires an 8-GPU node
+  minReplicas: 1
+  maxReplicas: 3  # Max 3 nodes = 24 GPUs
+  
+  metrics:
+    # Scale based on CPU utilization
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70
+    
+    # Scale based on memory utilization
+    - type: Resource
+      resource:
+        name: memory
+        target:
+          type: Utilization
+          averageUtilization: 80
+  
+  # Scaling behavior
+  behavior:
+    scaleDown:
+      # Conservative scale down to avoid losing GPU-loaded models
+      stabilizationWindowSeconds: 300  # 5 minute window
+      policies:
+        - type: Pods
+          value: 1
+          periodSeconds: 300  # Max 1 pod per 5 minutes
+    scaleUp:
+      # Faster scale up for handling load spikes
+      stabilizationWindowSeconds: 60
+      policies:
+        - type: Pods
+          value: 1
+          periodSeconds: 60  # Max 1 pod per minute
+        - type: Percent
+          value: 100
+          periodSeconds: 60
+      selectPolicy: Max
+---
+# PodDisruptionBudget to ensure availability during updates
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: esm2-inference
+  namespace: esm2-inference
+  labels:
+    app.kubernetes.io/name: esm2-inference
+    app.kubernetes.io/component: pdb
+spec:
+  # Ensure at least one pod is always available
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: esm2-inference
