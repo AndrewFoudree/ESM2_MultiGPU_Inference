@@ -35,5 +35,8 @@ esm2-multi-gpu-service/<br>
     &emsp;&emsp;.dockerignore<br>
     &emsp;README.md<br>
 
-   <br> __Scripts__<br>
+   <br> __Scripts:__<br>
+   &emsp;benchmark.py<br>
+   &emsp;Run Service: unvicorn app.main:app --host 0.0.0.0 --port 8000<br>
+   &emsp;Run Benchmark (new terminal): python benchmark.py --url http://localhost:8000 --batch-sizes 1 8 32<br> 
     
