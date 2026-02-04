@@ -1,0 +1,35 @@
+# Health check - should show 8 GPUs
+curl http://localhost:8000/health | python3 -m json.tool
+
+# Single prediction
+curl -X POST http://localhost:8000/predict \
+  -H "Content-Type: application/json" \
+  -d '{"sequence": "MKTVRQERLKSIVRILERSKEPVSGAQL", "include_embeddings": false}'
+
+# Batch prediction (8 sequences = 1 per GPU)
+curl -X POST http://localhost:8000/predict/batch \
+  -H "Content-Type: application/json" \
+  -d '{
+    "sequences": [
+      "MKTVRQERLKSIVRILERSKEPVSGAQL",
+      "KALTARQQEVFDLIRDHISQTGMPPTRAEIAQ",
+      "MSGSHHHHHHSSGLVPRGSH",
+      "MNIFEMLRIDEGLRLKIYKDTEGYYTIGIGHLL",
+      "MVLSPADKTNVKAAWGKVGAHAGEYGAEALERM",
+      "GLSDGEWQQVLNVWGKVEADIPGHGQEVLIRLFK",
+      "MHSSIVLATVLFVAIASASKTRELCMKSLEHAKVG",
+      "DYKDDDDKGSENLYFQSGSHHHHHHSSGLVPRGS"
+    ],
+    "include_embeddings": false
+  }' | python3 -m json.tool
+
+
+Run Benchmark:
+# Activate venv if not already
+source .venv/bin/activate
+
+# Run benchmark against the live server
+python scripts/benchmark.py --url http://localhost:8000 --batch-sizes 1 8 32 64 --requests 20
+
+# Watch GPU usage in real-time
+watch -n 1 nvidia-smi
