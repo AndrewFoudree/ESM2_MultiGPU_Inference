@@ -66,7 +66,7 @@ esm2-multi-gpu-service/<br>
    &emsp;Start the Server<br>
    &emsp;uvicorn app.main:app --host 0.0.0.0 --port 8000<br>
    <br>
-   &emsp;Verify the Service -  Health Check<br>
+   &emsp;# Health check - should show 8 GPUs<br>
    &emsp;curl http://localhost:8000/health | python3 -m json.tool<br>
 
    &emsp;# Single prediction<br>
