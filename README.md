@@ -95,20 +95,16 @@ esm2-multi-gpu-service/<br>
 
 &emsp;# Watch GPU usage in real-time<br>
 &emsp;&emsp;watch -n 1 nvidia-smi<br>
-   
-    <br>Docker:<br>
+    
+<br>Docker:<br>
     &emsp;# Install Docker<br>
     &emsp;sudo apt update<br>
-    &emsp;sudo apt install -y docker.io<br>
-
+    &emsp;sudo apt install -y docker.io<br><br>
     &emsp;# Start Docker<br>
     &emsp;sudo systemctl start docker<br>
-    &emsp;sudo systemctl enable docker<br>
-
+    &emsp;sudo systemctl enable docker<br><br>
     &emsp;# Add yourself to docker group (avoids needing sudo)<br>
     &emsp;&emsp;sudo usermod -aG docker $USER<br>
     &emsp;&emsp;newgrp docker<br>
-
-    <br>Build the Docker Image<br>
-    &emsp;&emsp;docker build -t esm2-multi-gpu-inference:latest .<br>
-    
+    &emsp;&emsp;# Build the Docker Image<br>
+    &emsp;&emsp;&emsp;docker build -t esm2-multi-gpu-inference:latest .<br>
