@@ -27,7 +27,7 @@ esm2-multi-gpu-service/<br>
       &emsp;&emsp;hpa.yaml<br>
       &emsp;&emsp;ingress.yaml<br>
       &emsp;&emsp;esm2-8gpu-service.yaml **\--used for live testing**<br>
-      &emsp;&emsp;&emsp;&emsp;**adjust namespace as needed**<br>
+      &emsp;&emsp;&emsp;&emsp;**\--adjust namespace as needed**<br>
     &emsp;scripts/<br>
       &emsp;&emsp;benchmark.py<br>
     &emsp;Dockerfile<br>
@@ -92,5 +92,23 @@ esm2-multi-gpu-service/<br>
    &emsp;&nbsp;&nbsp; ],<br>
    &emsp; "include_embeddings": false<br>
   &emsp;}' | python3 -m json.tool<br>
+
+&emsp;# Watch GPU usage in real-time<br>
+&emsp;&emsp;watch -n 1 nvidia-smi<br>
    
+    <br>Docker:<br>
+    &emsp;# Install Docker<br>
+    &emsp;sudo apt update<br>
+    &emsp;sudo apt install -y docker.io<br>
+
+    &emsp;# Start Docker<br>
+    &emsp;sudo systemctl start docker<br>
+    &emsp;sudo systemctl enable docker<br>
+
+    &emsp;# Add yourself to docker group (avoids needing sudo)<br>
+    &emsp;&emsp;sudo usermod -aG docker $USER<br>
+    &emsp;&emsp;newgrp docker<br>
+
+    <br>Build the Docker Image<br>
+    &emsp;&emsp;docker build -t esm2-multi-gpu-inference:latest .<br>
     
