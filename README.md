@@ -22,7 +22,7 @@ esm2-multi-gpu-service/<br>
     &emsp;k8s/<br>
       &emsp;&emsp;namespace.yaml<br>
       &emsp;&emsp;deployment.yaml<br>
-      &emsp;&emsp;service.yaml<br>    
+      &emsp;&emsp;service.yaml<br> 
       &emsp;&emsp;configmap.yaml<br>
       &emsp;&emsp;hpa.yaml<br>
       &emsp;&emsp;ingress.yaml<br>
