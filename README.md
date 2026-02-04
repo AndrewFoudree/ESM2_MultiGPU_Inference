@@ -27,7 +27,7 @@ esm2-multi-gpu-service/<br>
       &emsp;&emsp;hpa.yaml<br>
       &emsp;&emsp;ingress.yaml<br>
       &emsp;&emsp;esm2-8gpu-service.yaml **\--used for live testing**<br>
-      &emsp;&emsp;&emsp;&emsp;**\--adjust namespace as needed**<br>
+      &emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;**\--adjust namespace as needed**<br>
     &emsp;scripts/<br>
       &emsp;&emsp;benchmark.py<br>
     &emsp;Dockerfile<br>
@@ -37,12 +37,12 @@ esm2-multi-gpu-service/<br>
     &emsp;.dockerignore<br>
     &emsp;README.md<br>
 
-   <br> __Scripts:__<br>
+   # Scripts:<br>
    &emsp;benchmark.py<br>
    &emsp;Run Service: unvicorn app.main:app --host 0.0.0.0 --port 8000<br>
    &emsp;Run Benchmark (new terminal): python benchmark.py --url http://localhost:8000 --batch-sizes 1 8 32<br> 
 
-   <br>__ESM2 Multi-GPU Inference Service - Quick Guide__<br>
+   # ESM2 Multi-GPU Inference Service - Quick Guide<br>
 
    &emsp;kubectl apply -f esm2-8gpu-service-yaml<br>
    <br>
@@ -68,43 +68,42 @@ esm2-multi-gpu-service/<br>
    &emsp;Start the Server<br>
    &emsp;uvicorn app.main:app --host 0.0.0.0 --port 8000<br>
    <br>
-   &emsp;# Health check - should show 8 GPUs<br>
-   &emsp;curl http://localhost:8000/health | python3 -m json.tool<br>
 
-   &emsp;# Single prediction<br>
-   &emsp;curl -X POST http://localhost:8000/predict<br> 
-   &emsp;&nbsp;&nbsp;-H "Content-Type: application/json" <br>
-   &emsp;&nbsp;&nbsp;-d '{"sequence": "MKTVRQERLKSIVRILERSKEPVSGAQL", "include_embeddings": false}'<br>
-
-   &emsp;# Batch prediction (8 sequences = 1 per GPU)<br>
-   &emsp;curl -X POST http://localhost:8000/predict/batch <br>
-   &emsp;&nbsp;&nbsp;-H "Content-Type: application/json" <br>
-   &emsp;&nbsp;&nbsp;-d '{<br>
-   &emsp;&nbsp;&nbsp; "sequences": [<br>
-   &emsp;&nbsp;&nbsp;   "MKTVRQERLKSIVRILERSKEPVSGAQL",<br>
-   &emsp;&nbsp;&nbsp;   "KALTARQQEVFDLIRDHISQTGMPPTRAEIAQ",<br>
-   &emsp;&nbsp;&nbsp;   "MSGSHHHHHHSSGLVPRGSH",<br>
-   &emsp;&nbsp;&nbsp;   "MNIFEMLRIDEGLRLKIYKDTEGYYTIGIGHLL",<br>
-   &emsp;&nbsp;&nbsp;   "MVLSPADKTNVKAAWGKVGAHAGEYGAEALERM",<br>
-   &emsp;&nbsp;&nbsp;   "GLSDGEWQQVLNVWGKVEADIPGHGQEVLIRLFK",<br>
-   &emsp;&nbsp;&nbsp;   "MHSSIVLATVLFVAIASASKTRELCMKSLEHAKVG",<br>
-   &emsp;&nbsp;&nbsp;   "DYKDDDDKGSENLYFQSGSHHHHHHSSGLVPRGS"<br>
-   &emsp;&nbsp;&nbsp; ],<br>
-   &emsp; "include_embeddings": false<br>
-  &emsp;}' | python3 -m json.tool<br>
-
-&emsp;# Watch GPU usage in real-time<br>
-&emsp;&emsp;watch -n 1 nvidia-smi<br>
+# Health Check - Should Show 8 GPUs
+curl http://localhost:8000/health | python3 -m json.tool
+# Single Prediction
+curl -X POST http://localhost:8000/predict \
+  -H "Content-Type: application/json" \
+  -d '{"sequence": "MKTVRQERLKSIVRILERSKEPVSGAQL", "include_embeddings": false}'
+# Batch Prediction (8 sequences = 1 per GPU)
+curl -X POST http://localhost:8000/predict/batch \
+  -H "Content-Type: application/json" \
+  -d '{
+    "sequences": [
+      "MKTVRQERLKSIVRILERSKEPVSGAQL",
+      "KALTARQQEVFDLIRDHISQTGMPPTRAEIAQ",
+      "MSGSHHHHHHSSGLVPRGSH",
+      "MNIFEMLRIDEGLRLKIYKDTEGYYTIGIGHLL",
+      "MVLSPADKTNVKAAWGKVGAHAGEYGAEALERM",
+      "GLSDGEWQQVLNVWGKVEADIPGHGQEVLIRLFK",
+      "MHSSIVLATVLFVAIASASKTRELCMKSLEHAKVG",
+      "DYKDDDDKGSENLYFQSGSHHHHHHSSGLVPRGS"
+    ],
+    "include_embeddings": false
+    }' | python3 -m json.tool
+    <br>
     
-<br>Docker:<br>
-    &emsp;# Install Docker<br>
-    &emsp;sudo apt update<br>
-    &emsp;sudo apt install -y docker.io<br><br>
-    &emsp;# Start Docker<br>
-    &emsp;sudo systemctl start docker<br>
-    &emsp;sudo systemctl enable docker<br><br>
-    &emsp;# Add yourself to docker group (avoids needing sudo)<br>
-    &emsp;&emsp;sudo usermod -aG docker $USER<br>
-    &emsp;&emsp;newgrp docker<br>
-    &emsp;&emsp;# Build the Docker Image<br>
-    &emsp;&emsp;&emsp;docker build -t esm2-multi-gpu-inference:latest .<br>
+   # Watch GPU usage in real-time:<br>
+   &emsp;watch -n 1 nvidia-smi<br>
+   # Docker:<br>
+   &emsp;# Install Docker<br>
+   &emsp;sudo apt update<br>
+   &emsp;sudo apt install -y docker.io<br><br>
+   &emsp;# Start Docker<br>
+   &emsp;sudo systemctl start docker<br>
+   &emsp;sudo systemctl enable docker<br><br>
+   &emsp;# Add yourself to docker group (avoids needing sudo)<br>
+   &emsp;&emsp;sudo usermod -aG docker $USER<br>
+   &emsp;&emsp;newgrp docker<br><br>
+    &emsp;# Build the Docker Image<br>
+    &emsp;&emsp;&emsp;docker build -t esm2-multi-gpu-inference:latest .<br><br>
