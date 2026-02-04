@@ -40,7 +40,7 @@ esm2-multi-gpu-service/<br>
    &emsp;Run Service: unvicorn app.main:app --host 0.0.0.0 --port 8000<br>
    &emsp;Run Benchmark (new terminal): python benchmark.py --url http://localhost:8000 --batch-sizes 1 8 32<br> 
 
-   <br>__Quick Guide__<br>
+   <br>__ESM2 Multi-GPU Inference Service - Quick Guide__<br>
 
    &emsp;kubectl apply -f esm2-8gpu-service-yaml<br>
    <br>
@@ -70,8 +70,8 @@ esm2-multi-gpu-service/<br>
    &emsp;curl http://localhost:8000/health | python3 -m json.tool<br>
 
    &emsp;# Batch prediction (8 sequences = 1 per GPU)<br>
-   &emsp;curl -X POST http://localhost:8000/predict/batch \<br><br>
-   &emsp;&nbsp;&nbsp;-H "Content-Type: application/json" \<br>
+   &emsp;curl -X POST http://localhost:8000/predict/batch <br>
+   &emsp;&nbsp;&nbsp;-H "Content-Type: application/json" <br>
    &emsp;&nbsp;&nbsp;-d '{<br>
    &emsp;&nbsp;&nbsp; "sequences": [<br>
    &emsp;&nbsp;&nbsp;   "MKTVRQERLKSIVRILERSKEPVSGAQL",<br>
