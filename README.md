@@ -45,11 +45,11 @@ esm2-multi-gpu-service/<br>
    &emsp;kubectl apply -f esm2-8gpu-service-yaml<br>
    <br>
    &emsp;Verify the pod is running:<br>
-   &emsp;&emsp;kubectl get pods<br>
+   &emsp;&emsp;kubectl get pods<br><br>
    &emsp;Access the pod:<br>
    &emsp;kubectl exec -it insert-pod-name -- /bin/bash<br>
    <br>
-   &emsp;Clone the Repostiory:<br>
+   &emsp;Clone the Repository:<br>
    &emsp;cd /workspace<br>
    &emsp;git clone <https-repo><br>
    &emsp;cd ESM2_MultiGPU_Inference<br>
