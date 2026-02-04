@@ -63,13 +63,13 @@ esm2-multi-gpu-service/<br>
    &emsp;Run Tests<br>
    &emsp;pytest tests/ -v<br>
    <br>
-   &emsp;Start tje Server<br>
+   &emsp;Start the Server<br>
    &emsp;uvicorn app.main:app --host 0.0.0.0 --port 8000<br>
    <br>
    &emsp;Verify the Service -  Health Check<br>
    &emsp;curl http://localhost:8000/health | python3 -m json.tool<br>
 
-   &emsp;# Single prediction
+   &emsp;# Single prediction<br>
    &emsp;curl -X POST http://localhost:8000/predict<br> 
    &emsp;&nbsp;&nbsp;-H "Content-Type: application/json" <br>
    &emsp;&nbsp;&nbsp;-d '{"sequence": "MKTVRQERLKSIVRILERSKEPVSGAQL", "include_embeddings": false}'<br>
