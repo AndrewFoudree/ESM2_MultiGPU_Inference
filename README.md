@@ -26,6 +26,8 @@ esm2-multi-gpu-service/<br>
       &emsp;&emsp;configmap.yaml<br>
       &emsp;&emsp;hpa.yaml<br>
       &emsp;&emsp;ingress.yaml<br>
+      &emsp;&emsp;esm2-8gpu-service.yaml --used for live testing<br>
+      &emsp;&emsp;adjust namespace as needed<br>
     &emsp;scripts/<br>
       &emsp;&emsp;benchmark.py<br>
     &emsp;Dockerfile<br>
