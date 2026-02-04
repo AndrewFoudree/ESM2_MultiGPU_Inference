@@ -28,11 +28,11 @@ esm2-multi-gpu-service/<br>
       &emsp;&emsp;ingress.yaml<br>
     &emsp;scripts/<br>
       &emsp;&emsp;benchmark.py<br>
-    &emsp;&emsp;Dockerfile<br>
-    &emsp;&emsp;requirements.txt<br>
-    &emsp;&emsp;requirements-dev.txt<br>
-    &emsp;&emsp;pyproject.toml<br>
-    &emsp;&emsp;.dockerignore<br>
+    &emsp;Dockerfile<br>
+    &emsp;requirements.txt<br>
+    &emsp;requirements-dev.txt<br>
+    &emsp;pyproject.toml<br>
+    &emsp;.dockerignore<br>
     &emsp;README.md<br>
 
    <br> __Scripts:__<br>
