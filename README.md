@@ -69,6 +69,11 @@ esm2-multi-gpu-service/<br>
    &emsp;Verify the Service -  Health Check<br>
    &emsp;curl http://localhost:8000/health | python3 -m json.tool<br>
 
+   &emsp;# Single prediction
+   &emsp;curl -X POST http://localhost:8000/predict<br> 
+   &emsp;&nbsp;&nbsp;-H "Content-Type: application/json" <br>
+   &emsp;&nbsp;&nbsp;-d '{"sequence": "MKTVRQERLKSIVRILERSKEPVSGAQL", "include_embeddings": false}'<br>
+
    &emsp;# Batch prediction (8 sequences = 1 per GPU)<br>
    &emsp;curl -X POST http://localhost:8000/predict/batch <br>
    &emsp;&nbsp;&nbsp;-H "Content-Type: application/json" <br>
