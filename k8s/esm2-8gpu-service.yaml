@@ -1,0 +1,42 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: esm2-8gpu
+  namespace: hackathon
+  labels:
+    app: esm2-api
+spec:
+  restartPolicy: Never
+  containers:
+  - name: pytorch
+    image: nvcr.io/nvidia/pytorch:24.01-py3
+    command: ["sleep", "infinity"]
+    ports:
+    - containerPort: 8000
+      name: api
+    resources:
+      requests:
+        memory: "128Gi"
+        cpu: "32"
+        nvidia.com/gpu: 8
+  nodeSelector:
+    node.kubernetes.io/instance-type: g5.48xlarge
+  tolerations:
+  - key: "nvidia.com/gpu
+    operator: "Exists"
+    effect: "NoSchedule"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: esm2-api-service
+  namespace: hackathon
+spec:
+  selector:
+    app: esm2-api # Matches the pod label above
+  ports:
+  - protocol:TCP
+    port: 8000  # Port other pods use to connect
+    targetPort: 8000 # Port your container listens on
+    name: api
+  type: ClusterIP # Only accessible within the cluster
