@@ -39,4 +39,51 @@ esm2-multi-gpu-service/<br>
    &emsp;benchmark.py<br>
    &emsp;Run Service: unvicorn app.main:app --host 0.0.0.0 --port 8000<br>
    &emsp;Run Benchmark (new terminal): python benchmark.py --url http://localhost:8000 --batch-sizes 1 8 32<br> 
+
+   <br>__Quick Guide__<br>
+
+   &emsp;kubectl apply -f esm2-8gpu-service-yaml<br>
+   <br>
+   &emsp;Verify the pod is running:<br>
+   &emsp;&emsp;kubectl get pods<br>
+   &emsp;Access the pod:<br>
+   &emsp;kubectl exec -it <pod name> -- /bin/bash<br>
+   <br>
+   &emsp;Clone the Repostiory:<br>
+   &emsp;cd /workspace<br>
+   &emsp;git clone <https-repo><br>
+   &emsp;cd ESM2_MultiGPU_Inference<br>
+   <br>
+   &emsp;Set up Python Environment:<br>
+   &emsp;apt update && apt install -y python3.10-venv<br>
+   &emsp;python3 -m venv .venv<br>
+   &emsp;source .venv/bin/activate<br>
+   &emsp;pip install requirements<br>
+   <br>
+   &emsp;Run Tests<br>
+   &emsp;pytest tests/ -v<br>
+   <br>
+   &emsp;Start tje Server<br>
+   &emsp;uvicorn app.main:app --host 0.0.0.0 --port 8000<br>
+   <br>
+   &emsp;Verify the Service -  Health Check<br>
+   &emsp;curl http://localhost:8000/health | python3 -m json.tool<br>
+
+   &emsp;# Batch prediction (8 sequences = 1 per GPU)<br>
+   &emsp;curl -X POST http://localhost:8000/predict/batch \<br>
+   &emsp;-H "Content-Type: application/json" \<br>
+   &emsp;-d '{<br>
+   &emsp; "sequences": [<br>
+   &emsp;   "MKTVRQERLKSIVRILERSKEPVSGAQL",<br>
+   &emsp;   "KALTARQQEVFDLIRDHISQTGMPPTRAEIAQ",<br>
+   &emsp;   "MSGSHHHHHHSSGLVPRGSH",<br>
+   &emsp;   "MNIFEMLRIDEGLRLKIYKDTEGYYTIGIGHLL",<br>
+   &emsp;   "MVLSPADKTNVKAAWGKVGAHAGEYGAEALERM",<br>
+   &emsp;   "GLSDGEWQQVLNVWGKVEADIPGHGQEVLIRLFK",<br>
+   &emsp;   "MHSSIVLATVLFVAIASASKTRELCMKSLEHAKVG",<br>
+   &emsp;   "DYKDDDDKGSENLYFQSGSHHHHHHSSGLVPRGS"<br>
+   &emsp; ],<br>
+   &emsp; "include_embeddings": false<br>
+  &emsp;}' | python3 -m json.tool<br>
+   
     
