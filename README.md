@@ -70,19 +70,19 @@ esm2-multi-gpu-service/<br>
    &emsp;curl http://localhost:8000/health | python3 -m json.tool<br>
 
    &emsp;# Batch prediction (8 sequences = 1 per GPU)<br>
-   &emsp;curl -X POST http://localhost:8000/predict/batch \<br>
-   &emsp;-H "Content-Type: application/json" \<br>
-   &emsp;-d '{<br>
-   &emsp; "sequences": [<br>
-   &emsp;   "MKTVRQERLKSIVRILERSKEPVSGAQL",<br>
-   &emsp;   "KALTARQQEVFDLIRDHISQTGMPPTRAEIAQ",<br>
-   &emsp;   "MSGSHHHHHHSSGLVPRGSH",<br>
-   &emsp;   "MNIFEMLRIDEGLRLKIYKDTEGYYTIGIGHLL",<br>
-   &emsp;   "MVLSPADKTNVKAAWGKVGAHAGEYGAEALERM",<br>
-   &emsp;   "GLSDGEWQQVLNVWGKVEADIPGHGQEVLIRLFK",<br>
-   &emsp;   "MHSSIVLATVLFVAIASASKTRELCMKSLEHAKVG",<br>
-   &emsp;   "DYKDDDDKGSENLYFQSGSHHHHHHSSGLVPRGS"<br>
-   &emsp; ],<br>
+   &emsp;curl -X POST http://localhost:8000/predict/batch \<br><br>
+   &emsp;&nbsp;&nbsp;-H "Content-Type: application/json" \<br>
+   &emsp;&nbsp;&nbsp;-d '{<br>
+   &emsp;&nbsp;&nbsp; "sequences": [<br>
+   &emsp;&nbsp;&nbsp;   "MKTVRQERLKSIVRILERSKEPVSGAQL",<br>
+   &emsp;&nbsp;&nbsp;   "KALTARQQEVFDLIRDHISQTGMPPTRAEIAQ",<br>
+   &emsp;&nbsp;&nbsp;   "MSGSHHHHHHSSGLVPRGSH",<br>
+   &emsp;&nbsp;&nbsp;   "MNIFEMLRIDEGLRLKIYKDTEGYYTIGIGHLL",<br>
+   &emsp;&nbsp;&nbsp;   "MVLSPADKTNVKAAWGKVGAHAGEYGAEALERM",<br>
+   &emsp;&nbsp;&nbsp;   "GLSDGEWQQVLNVWGKVEADIPGHGQEVLIRLFK",<br>
+   &emsp;&nbsp;&nbsp;   "MHSSIVLATVLFVAIASASKTRELCMKSLEHAKVG",<br>
+   &emsp;&nbsp;&nbsp;   "DYKDDDDKGSENLYFQSGSHHHHHHSSGLVPRGS"<br>
+   &emsp;&nbsp;&nbsp; ],<br>
    &emsp; "include_embeddings": false<br>
   &emsp;}' | python3 -m json.tool<br>
    
