@@ -51,7 +51,7 @@ esm2-multi-gpu-service/<br>
    <br>
    &emsp;Clone the Repository:<br>
    &emsp;cd /workspace<br>
-   &emsp;git clone <https-repo><br>
+   &emsp;git clone insert-https-repo-code-here<br>
    &emsp;cd ESM2_MultiGPU_Inference<br>
    <br>
    &emsp;Set up Python Environment:<br>
