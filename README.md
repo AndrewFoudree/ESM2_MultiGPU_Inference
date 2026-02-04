@@ -47,7 +47,7 @@ esm2-multi-gpu-service/<br>
    &emsp;Verify the pod is running:<br>
    &emsp;&emsp;kubectl get pods<br>
    &emsp;Access the pod:<br>
-   &emsp;kubectl exec -it <pod name> -- /bin/bash<br>
+   &emsp;kubectl exec -it insert-pod-name -- /bin/bash<br>
    <br>
    &emsp;Clone the Repostiory:<br>
    &emsp;cd /workspace<br>
