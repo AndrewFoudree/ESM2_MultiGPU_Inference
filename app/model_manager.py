@@ -5,6 +5,7 @@ This module handles:
 - Auto-detection of available GPUs
 - Loading model replicas onto each GPU
 - Distributing batch requests across GPUs for parallel inference
+- Request batching for improved throughput under concurrent load
 - Resource management and cleanup
 """
 
@@ -13,7 +14,7 @@ import logging
 import time
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 import torch
 
@@ -186,6 +187,215 @@ class GPUDistributor:
             },
             gpu_assignments=gpu_assignments,
         )
+
+
+class BatchQueue:
+    """
+    Asynchronous batch queue for combining concurrent prediction requests.
+
+    This improves throughput under concurrent load by:
+    1. Collecting incoming single-sequence requests
+    2. Waiting briefly (max_wait_ms) for more requests to arrive
+    3. Processing all collected requests as a single batch
+    4. Returning individual results to each caller
+
+    This is especially effective when:
+    - Multiple clients send requests simultaneously
+    - GPU batch processing is more efficient than sequential processing
+    - Latency tolerance allows for small delays (e.g., 50ms)
+    """
+
+    def __init__(
+        self,
+        model_manager: "ModelManager",
+        max_wait_ms: int = 50,
+        max_batch_size: int = 64,
+    ):
+        """
+        Initialize BatchQueue.
+
+        Args:
+            model_manager: ModelManager instance for running inference
+            max_wait_ms: Maximum time to wait for additional requests
+            max_batch_size: Maximum requests to batch together
+        """
+        self.model_manager = model_manager
+        self.max_wait_ms = max_wait_ms
+        self.max_batch_size = max_batch_size
+        self.queue: asyncio.Queue = asyncio.Queue()
+        self._processor_task: Optional[asyncio.Task] = None
+        self._running = False
+
+    async def start(self) -> None:
+        """Start the batch processor background task."""
+        if self._running:
+            return
+        self._running = True
+        self._processor_task = asyncio.create_task(self._batch_processor())
+        logger.info(
+            f"BatchQueue started (max_wait={self.max_wait_ms}ms, "
+            f"max_batch={self.max_batch_size})"
+        )
+
+    async def stop(self) -> None:
+        """Stop the batch processor."""
+        self._running = False
+        if self._processor_task:
+            self._processor_task.cancel()
+            try:
+                await self._processor_task
+            except asyncio.CancelledError:
+                pass
+        logger.info("BatchQueue stopped")
+
+    async def predict(
+        self,
+        sequence: str,
+        include_embeddings: bool = True,
+        include_attention: bool = False,
+    ) -> PredictionResponse:
+        """
+        Submit a sequence for batched prediction.
+
+        The sequence will be combined with other concurrent requests
+        and processed as a batch.
+
+        Args:
+            sequence: Protein sequence to process
+            include_embeddings: Whether to include embeddings in response
+            include_attention: Whether to include attention weights
+
+        Returns:
+            PredictionResponse with inference results
+        """
+        future: asyncio.Future = asyncio.Future()
+        request = {
+            "sequence": sequence,
+            "include_embeddings": include_embeddings,
+            "include_attention": include_attention,
+            "future": future,
+            "submit_time": time.time(),
+        }
+        await self.queue.put(request)
+        return await future
+
+    async def _batch_processor(self) -> None:
+        """
+        Background task that processes batched requests.
+
+        Algorithm:
+        1. Wait for at least one request
+        2. Collect additional requests for up to max_wait_ms
+        3. Process all collected requests as a batch
+        4. Resolve individual futures with results
+        5. Repeat
+        """
+        while self._running:
+            try:
+                batch: List[Dict[str, Any]] = []
+
+                # Wait for first request (blocking)
+                try:
+                    first_request = await asyncio.wait_for(
+                        self.queue.get(), timeout=1.0
+                    )
+                    batch.append(first_request)
+                except asyncio.TimeoutError:
+                    continue
+
+                # Collect more requests for max_wait_ms
+                deadline = time.time() + (self.max_wait_ms / 1000)
+
+                while len(batch) < self.max_batch_size:
+                    remaining = deadline - time.time()
+                    if remaining <= 0:
+                        break
+
+                    try:
+                        request = await asyncio.wait_for(
+                            self.queue.get(), timeout=remaining
+                        )
+                        batch.append(request)
+                    except asyncio.TimeoutError:
+                        break
+
+                # Process the batch
+                await self._process_batch(batch)
+
+            except asyncio.CancelledError:
+                # Handle any remaining requests before shutdown
+                remaining_batch = []
+                while not self.queue.empty():
+                    try:
+                        remaining_batch.append(self.queue.get_nowait())
+                    except asyncio.QueueEmpty:
+                        break
+                if remaining_batch:
+                    await self._process_batch(remaining_batch)
+                raise
+
+            except Exception as e:
+                logger.error(f"BatchQueue processor error: {e}")
+                # Fail all pending requests in the current batch
+                for request in batch:
+                    if not request["future"].done():
+                        request["future"].set_exception(e)
+
+    async def _process_batch(self, batch: List[Dict[str, Any]]) -> None:
+        """
+        Process a batch of requests and resolve their futures.
+
+        Args:
+            batch: List of request dictionaries with sequences and futures
+        """
+        if not batch:
+            return
+
+        sequences = [r["sequence"] for r in batch]
+        # Use settings from first request (they should typically be the same)
+        include_embeddings = batch[0]["include_embeddings"]
+        include_attention = batch[0]["include_attention"]
+
+        logger.debug(f"Processing batch of {len(batch)} sequences")
+
+        try:
+            start_time = time.time()
+
+            # Run batch inference through model manager
+            batch_response = await self.model_manager.predict_batch(
+                sequences=sequences,
+                include_embeddings=include_embeddings,
+                include_attention=include_attention,
+            )
+
+            total_time = time.time() - start_time
+
+            # Resolve individual futures
+            for i, (request, result) in enumerate(
+                zip(batch, batch_response.results)
+            ):
+                individual_time = time.time() - request["submit_time"]
+                response = PredictionResponse(
+                    sequence=result.sequence,
+                    sequence_length=result.sequence_length,
+                    embedding=result.embedding,
+                    embedding_dim=result.embedding_dim,
+                    attention_shape=result.attention_shape,
+                    gpu_id=result.gpu_id,
+                    inference_time_ms=individual_time * 1000,
+                    model_name=self.model_manager.model_name,
+                )
+                request["future"].set_result(response)
+
+            logger.debug(
+                f"Batch of {len(batch)} completed in {total_time*1000:.1f}ms"
+            )
+
+        except Exception as e:
+            logger.error(f"Batch processing error: {e}")
+            for request in batch:
+                if not request["future"].done():
+                    request["future"].set_exception(e)
 
 
 class ModelManager:

@@ -12,7 +12,7 @@ from fastapi import FastAPI, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
-from app.model_manager import GPUDistributor, ModelManager
+from app.model_manager import BatchQueue, GPUDistributor, ModelManager
 from app.schemas import (
     BatchPredictionRequest,
     BatchPredictionResponse,
@@ -27,9 +27,10 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# Global model manager instance
+# Global instances
 model_manager: ModelManager = None
 gpu_distributor: GPUDistributor = None
+batch_queue: BatchQueue = None
 
 
 @asynccontextmanager
@@ -38,7 +39,7 @@ async def lifespan(app: FastAPI):
     Lifecycle manager for FastAPI application.
     Handles model loading on startup and cleanup on shutdown.
     """
-    global model_manager, gpu_distributor
+    global model_manager, gpu_distributor, batch_queue
 
     logger.info("Starting ESM-2 Multi-GPU Inference Service...")
 
@@ -51,12 +52,29 @@ async def lifespan(app: FastAPI):
     # Load models onto available GPUs
     await model_manager.load_models()
 
+    # Initialize and start batch queue if enabled
+    if settings.BATCH_QUEUE_ENABLED:
+        batch_queue = BatchQueue(
+            model_manager=model_manager,
+            max_wait_ms=settings.BATCH_QUEUE_MAX_WAIT_MS,
+            max_batch_size=settings.BATCH_QUEUE_MAX_SIZE,
+        )
+        await batch_queue.start()
+        logger.info(
+            f"Batch queue enabled (max_wait={settings.BATCH_QUEUE_MAX_WAIT_MS}ms, "
+            f"max_size={settings.BATCH_QUEUE_MAX_SIZE})"
+        )
+
     logger.info(f"Service ready with {gpu_distributor.gpu_count} GPU(s) available")
 
     yield
 
     # Cleanup on shutdown
     logger.info("Shutting down service...")
+
+    if batch_queue:
+        await batch_queue.stop()
+
     await model_manager.cleanup()
     logger.info("Service shutdown complete")
 
@@ -105,13 +123,23 @@ async def health_check() -> HealthResponse:
             message="Service is starting up",
         )
 
+    batch_queue_status = ""
+    if settings.BATCH_QUEUE_ENABLED:
+        batch_queue_status = (
+            f" | Batch queue: {settings.BATCH_QUEUE_MAX_WAIT_MS}ms wait, "
+            f"max {settings.BATCH_QUEUE_MAX_SIZE}"
+        )
+
     return HealthResponse(
         status="healthy",
         gpu_count=gpu_distributor.gpu_count,
         gpu_ids=gpu_distributor.gpu_ids,
         model_loaded=model_manager.is_loaded,
         model_name=settings.MODEL_NAME,
-        message=f"Service operational with {gpu_distributor.gpu_count} GPU(s)",
+        message=(
+            f"Service operational with {gpu_distributor.gpu_count} GPU(s)"
+            f"{batch_queue_status}"
+        ),
     )
 
 
@@ -125,6 +153,9 @@ async def health_check() -> HealthResponse:
 async def predict(request: PredictionRequest) -> PredictionResponse:
     """
     Single sequence prediction endpoint.
+
+    When batch queue is enabled, requests are automatically batched with other
+    concurrent requests for improved throughput.
 
     Args:
         request: PredictionRequest containing the protein sequence.
@@ -142,11 +173,19 @@ async def predict(request: PredictionRequest) -> PredictionResponse:
         )
 
     try:
-        result = await model_manager.predict_single(
-            sequence=request.sequence,
-            include_embeddings=request.include_embeddings,
-            include_attention=request.include_attention,
-        )
+        # Use batch queue if enabled, otherwise direct prediction
+        if settings.BATCH_QUEUE_ENABLED and batch_queue:
+            result = await batch_queue.predict(
+                sequence=request.sequence,
+                include_embeddings=request.include_embeddings,
+                include_attention=request.include_attention,
+            )
+        else:
+            result = await model_manager.predict_single(
+                sequence=request.sequence,
+                include_embeddings=request.include_embeddings,
+                include_attention=request.include_attention,
+            )
         return result
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
@@ -233,4 +272,5 @@ async def root():
         "version": "1.0.0",
         "docs": "/docs",
         "health": "/health",
+        "batch_queue_enabled": settings.BATCH_QUEUE_ENABLED,
     }
