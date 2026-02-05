@@ -417,7 +417,7 @@ Given more time, I would implement the following enhancements:
 - **gRPC endpoint**: Lower latency than REST for high-frequency clients
 
 ### Observability
-- **Prometheus metrics**: GPU utilization, inference latency histograms, queue depth
+- **Prometheus metrics + Grafana dashboards**: GPU utilization, inference latency histograms, queue depth visualization
 - **Distributed tracing**: OpenTelemetry integration for request tracing
 - **Alerting**: PagerDuty/Slack alerts for GPU errors or latency spikes
 
