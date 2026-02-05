@@ -168,6 +168,34 @@ watch -n 1 nvidia-smi
 
 ---
 
+## 🖥️ GPU Architecture
+
+This service is deployed on an AWS `g5.48xlarge` instance with **8 NVIDIA A10G GPUs**.
+
+### How Batch Distribution Works
+
+Sequences are distributed across GPUs using a round-robin strategy:
+
+1. Each incoming sequence is assigned to a GPU in order (GPU 0 → GPU 1 → ... → GPU 7)
+2. After GPU 7, assignment wraps back to GPU 0
+3. This continues until all sequences in the batch are loaded
+
+**Example with a 20-sequence batch:**
+
+| Sequence | GPU |
+|----------|-----|
+| 1        | 0   |
+| 2        | 1   |
+| 3        | 2   |
+| ...      | ... |
+| 8        | 7   |
+| 9        | 0   |
+| 10       | 1   |
+| ...      | ... |
+| 20       | 3   |
+
+This approach ensures even load distribution across all available GPUs, maximizing throughput for batch inference.
+
 ## 🐳 Docker Setup
 
 ### 1. Install Docker
