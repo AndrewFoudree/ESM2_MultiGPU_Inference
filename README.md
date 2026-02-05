@@ -172,29 +172,35 @@ watch -n 1 nvidia-smi
 
 This service is deployed on an AWS `g5.48xlarge` instance with **8 NVIDIA A10G GPUs**.
 
+---
+
+## 🖥️ GPU Architecture
+
+This service is deployed on an AWS `g5.48xlarge` instance with **8 NVIDIA A10G GPUs**.
+
 ### How Batch Distribution Works
 
-Sequences are distributed across GPUs using a round-robin strategy:
+Sequences are distributed across GPUs using a **contiguous chunking strategy**:
 
-1. Each incoming sequence is assigned to a GPU in order (GPU 0 → GPU 1 → ... → GPU 7)
-2. After GPU 7, assignment wraps back to GPU 0
-3. This continues until all sequences in the batch are loaded
+1. Divide batch evenly: `base_per_gpu = batch_size // num_gpus`
+2. Calculate remainder: `remainder = batch_size % num_gpus`
+3. First `remainder` GPUs each receive one extra sequence
+4. All GPUs process their chunks in parallel
 
-**Example with a 20-sequence batch:**
+**Example: 20 sequences across 8 GPUs**
 
-| Sequence | GPU |
-|----------|-----|
-| 1        | 0   |
-| 2        | 1   |
-| 3        | 2   |
-| ...      | ... |
-| 8        | 7   |
-| 9        | 0   |
-| 10       | 1   |
-| ...      | ... |
-| 20       | 3   |
+| GPU | Sequences      | Count |
+|-----|----------------|-------|
+| 0   | 0, 1, 2        | 3     |
+| 1   | 3, 4, 5        | 3     |
+| 2   | 6, 7, 8        | 3     |
+| 3   | 9, 10, 11      | 3     |
+| 4   | 12, 13         | 2     |
+| 5   | 14, 15         | 2     |
+| 6   | 16, 17         | 2     |
+| 7   | 18, 19         | 2     |
 
-This approach ensures even load distribution across all available GPUs, maximizing throughput for batch inference.
+This approach maximizes throughput by processing all chunks in parallel using a thread pool, then reordering results to match the original input sequence.
 
 ## 🐳 Docker Setup
 
