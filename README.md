@@ -1,4 +1,3 @@
-
 # ESM2_MultiGPU_Inference
 
 [![CI](https://github.com/AndrewFoudree/ESM2_MultiGPU_Inference/actions/workflows/ci.yml/badge.svg)](https://github.com/AndrewFoudree/ESM2_MultiGPU_Inference/actions/workflows/ci.yml)
@@ -34,7 +33,7 @@ esm2-multi-gpu-service/
 │   ├── configmap.yaml
 │   ├── hpa.yaml
 │   ├── ingress.yaml
-│   └── esm2-8gpu-service.yaml    # Used for live testing (adjust namespace as needed)
+│   └── esm2-8gpu-service.yaml
 ├── scripts/
 │   └── benchmark.py
 ├── Dockerfile
@@ -54,8 +53,6 @@ esm2-multi-gpu-service/
 uvicorn app.main:app --host 0.0.0.0 --port 8000
 ```
 
-<br>
-
 ### Run Benchmark (in a new terminal)
 ```bash
 python scripts/benchmark.py --url http://localhost:8000 --batch-sizes 1 8 32
@@ -63,25 +60,223 @@ python scripts/benchmark.py --url http://localhost:8000 --batch-sizes 1 8 32
 
 ---
 
+## 🖥️ GPU Architecture
+
+This service is designed for AWS `g5.48xlarge` instances with **8 NVIDIA A10G GPUs**.
+
+### Auto-Detection
+
+The service automatically detects available GPUs at startup:
+- **0 GPUs**: Falls back to CPU inference
+- **1 GPU**: Single-GPU mode
+- **4 GPUs**: Distributes across 4 GPUs
+- **8 GPUs**: Full multi-GPU distribution
+
+### GPU Distribution Strategy
+
+Sequences are distributed across GPUs using a **contiguous chunking strategy**:
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                    Incoming Batch (20 sequences)                │
+└─────────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                      GPUDistributor                             │
+│  base_per_gpu = 20 // 8 = 2                                     │
+│  remainder = 20 % 8 = 4                                         │
+│  First 4 GPUs get 3 sequences, remaining 4 GPUs get 2           │
+└─────────────────────────────────────────────────────────────────┘
+                              │
+          ┌───────────────────┼───────────────────┐
+          ▼                   ▼                   ▼
+   ┌─────────────┐     ┌─────────────┐     ┌─────────────┐
+   │   GPU 0     │     │   GPU 1     │     │   GPU 2-7   │
+   │  Seq 0,1,2  │     │  Seq 3,4,5  │     │    ...      │
+   └─────────────┘     └─────────────┘     └─────────────┘
+          │                   │                   │
+          └───────────────────┼───────────────────┘
+                              ▼
+┌─────────────────────────────────────────────────────────────────┐
+│              Results Gathered & Reordered                       │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+**Distribution Example: 20 sequences across 8 GPUs**
+
+| GPU | Sequences      | Count |
+|-----|----------------|-------|
+| 0   | 0, 1, 2        | 3     |
+| 1   | 3, 4, 5        | 3     |
+| 2   | 6, 7, 8        | 3     |
+| 3   | 9, 10, 11      | 3     |
+| 4   | 12, 13         | 2     |
+| 5   | 14, 15         | 2     |
+| 6   | 16, 17         | 2     |
+| 7   | 18, 19         | 2     |
+
+### Batch Distribution Pseudocode
+
+```python
+def distribute_batch(sequences, gpu_count):
+    """
+    Distribute sequences across GPUs using contiguous chunking.
+    
+    Algorithm:
+    1. Calculate base sequences per GPU (integer division)
+    2. Calculate remainder sequences
+    3. First 'remainder' GPUs get one extra sequence
+    4. Assign contiguous chunks to each GPU
+    """
+    num_sequences = len(sequences)
+    
+    # Handle no GPUs - run on CPU
+    if gpu_count == 0:
+        return [(0, all_indices, sequences)]
+    
+    distribution = []
+    current_idx = 0
+    
+    # Even distribution with remainder handling
+    base_per_gpu = num_sequences // gpu_count
+    remainder = num_sequences % gpu_count
+    
+    for gpu_id in range(gpu_count):
+        # First 'remainder' GPUs get one extra
+        count = base_per_gpu + (1 if gpu_id < remainder else 0)
+        
+        if count > 0:
+            indices = range(current_idx, current_idx + count)
+            gpu_sequences = sequences[current_idx:current_idx + count]
+            distribution.append((gpu_id, indices, gpu_sequences))
+            current_idx += count
+    
+    return distribution
+```
+
+### Multi-GPU Inference Flow
+
+```python
+async def predict_batch(sequences):
+    """
+    Multi-GPU batch inference with parallel execution.
+    
+    Flow:
+    1. Validate all sequences
+    2. Get distribution plan from GPUDistributor
+    3. Submit inference tasks to ThreadPoolExecutor (one per GPU)
+    4. Await all results in parallel
+    5. Reorder results to match original sequence order
+    6. Return combined results with distribution metadata
+    """
+    # Get distribution plan
+    distribution = gpu_distributor.distribute_batch(sequences)
+    
+    # Submit parallel tasks
+    tasks = []
+    for gpu_id, indices, gpu_sequences in distribution:
+        task = executor.submit(run_inference, gpu_id, gpu_sequences)
+        tasks.append((indices, task))
+    
+    # Gather and reorder results
+    all_results = [None] * len(sequences)
+    for indices, task in tasks:
+        results = await task
+        for idx, result in zip(indices, results):
+            all_results[idx] = result
+    
+    return all_results
+```
+
+---
+
+## ⚡ Batch Queue (Request Batching)
+
+For high-throughput scenarios with many concurrent single-sequence requests, the service includes an optional **batch queue** that automatically combines requests.
+
+### How It Works
+
+1. Concurrent `/predict` requests are collected into a queue
+2. The queue waits up to 50ms for additional requests
+3. All collected requests are processed as a single batch
+4. Individual results are returned to each caller
+
+### Configuration
+
+| Setting | Default | Description |
+|---------|---------|-------------|
+| `BATCH_QUEUE_ENABLED` | `true` | Enable/disable request batching |
+| `BATCH_QUEUE_MAX_WAIT_MS` | `50` | Max time to wait for more requests |
+| `BATCH_QUEUE_MAX_SIZE` | `64` | Max requests to batch together |
+
+### When to Use
+
+| Scenario | Recommendation |
+|----------|----------------|
+| Low traffic, latency-sensitive | Disable batch queue |
+| Bursty traffic, throughput matters | Enable with 20-50ms wait |
+| High concurrency | Enable with larger batch size |
+
+---
+
+## 📊 Expected Performance Characteristics
+
+### Throughput Scaling by GPU Count
+
+| GPUs | Relative Throughput | Notes |
+|------|---------------------|-------|
+| 1    | 1x (baseline)       | Single GPU processes all sequences |
+| 4    | ~3.5-3.8x           | Near-linear scaling |
+| 8    | ~6.5-7.5x           | Good scaling with some overhead |
+
+### Factors Affecting Performance
+
+- **Sequence length**: Longer sequences = more compute per sequence
+- **Batch size**: Larger batches amortize overhead better
+- **GPU memory**: A10G has 24GB; model uses ~2-3GB per replica
+- **Inter-GPU overhead**: ThreadPool coordination adds minimal latency
+
+### Benchmark Results (Expected)
+
+```
+Batch Size | 1 GPU    | 4 GPUs   | 8 GPUs
+-----------|----------|----------|----------
+1          | 50ms     | 50ms     | 50ms
+8          | 400ms    | 120ms    | 70ms
+32         | 1600ms   | 420ms    | 230ms
+64         | 3200ms   | 820ms    | 430ms
+```
+
+*Note: Actual results vary based on sequence length and hardware.*
+
+---
+
 ## ☸️ Kubernetes Deployment
 
-### Deploy to Kubernetes
+### Production Deployment
+```bash
+# Create namespace
+kubectl create namespace esm2-inference
+
+# Apply ConfigMap
+kubectl apply -f k8s/configmap.yaml
+
+# Deploy service
+kubectl apply -f k8s/deployment.yaml
+kubectl apply -f k8s/service.yaml
+```
+
+### Development/Testing Pod
 ```bash
 kubectl apply -f k8s/esm2-8gpu-service.yaml
+kubectl exec -it esm2-8gpu -n hackathon -- /bin/bash
 ```
 
-<br>
-
-### Verify the pod is running
+### Verify Deployment
 ```bash
-kubectl get pods
-```
-
-<br>
-
-### Access the pod
-```bash
-kubectl exec -it <pod-name> -- /bin/bash
+kubectl get pods -n esm2-inference -w
+kubectl logs -f deployment/esm2-inference -n esm2-inference
 ```
 
 ---
@@ -90,30 +285,22 @@ kubectl exec -it <pod-name> -- /bin/bash
 
 ### 1. Clone the Repository
 ```bash
-cd /workspace
 git clone https://github.com/AndrewFoudree/ESM2_MultiGPU_Inference.git
 cd ESM2_MultiGPU_Inference
 ```
 
-<br>
-
 ### 2. Set up Python Environment
 ```bash
-sudo apt update && sudo apt install -y python3.12-venv
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
 pip install -r requirements-dev.txt
 ```
 
-<br>
-
 ### 3. Run Tests
 ```bash
 pytest tests/ -v
 ```
-
-<br>
 
 ### 4. Start the Server
 ```bash
@@ -124,12 +311,10 @@ uvicorn app.main:app --host 0.0.0.0 --port 8000
 
 ## 🧪 API Testing
 
-### Health Check (Should show 8 GPUs)
+### Health Check
 ```bash
 curl http://localhost:8000/health | python3 -m json.tool
 ```
-
-<br>
 
 ### Single Prediction
 ```bash
@@ -138,9 +323,7 @@ curl -X POST http://localhost:8000/predict \
   -d '{"sequence": "MKTVRQERLKSIVRILERSKEPVSGAQL", "include_embeddings": false}'
 ```
 
-<br>
-
-### Batch Prediction (8 sequences = 1 per GPU)
+### Batch Prediction (8 sequences)
 ```bash
 curl -X POST http://localhost:8000/predict/batch \
   -H "Content-Type: application/json" \
@@ -159,83 +342,21 @@ curl -X POST http://localhost:8000/predict/batch \
   }' | python3 -m json.tool
 ```
 
-<br>
-
-### Watch GPU Usage in Real-Time
+### Watch GPU Usage
 ```bash
 watch -n 1 nvidia-smi
 ```
 
 ---
 
-## 🖥️ GPU Architecture
-
-This service is deployed on an AWS `g5.48xlarge` instance with **8 NVIDIA A10G GPUs**.
-
----
-
-## 🖥️ GPU Architecture
-
-This service is deployed on an AWS `g5.48xlarge` instance with **8 NVIDIA A10G GPUs**.
-
-### How Batch Distribution Works
-
-Sequences are distributed across GPUs using a **contiguous chunking strategy**:
-
-1. Divide batch evenly: `base_per_gpu = batch_size // num_gpus`
-2. Calculate remainder: `remainder = batch_size % num_gpus`
-3. First `remainder` GPUs each receive one extra sequence
-4. All GPUs process their chunks in parallel
-
-**Example: 20 sequences across 8 GPUs**
-
-| GPU | Sequences      | Count |
-|-----|----------------|-------|
-| 0   | 0, 1, 2        | 3     |
-| 1   | 3, 4, 5        | 3     |
-| 2   | 6, 7, 8        | 3     |
-| 3   | 9, 10, 11      | 3     |
-| 4   | 12, 13         | 2     |
-| 5   | 14, 15         | 2     |
-| 6   | 16, 17         | 2     |
-| 7   | 18, 19         | 2     |
-
-This approach maximizes throughput by processing all chunks in parallel using a thread pool, then reordering results to match the original input sequence.
-
 ## 🐳 Docker Setup
 
-### 1. Install Docker
-```bash
-sudo apt update
-sudo apt install -y docker.io
-```
-
-<br>
-
-### 2. Start Docker
-```bash
-sudo systemctl start docker
-sudo systemctl enable docker
-```
-
-<br>
-
-### 3. Add yourself to docker group (avoids needing sudo)
-```bash
-sudo usermod -aG docker $USER
-newgrp docker
-```
-
-<br>
-
-### 4. Build the Docker Image
+### Build the Image
 ```bash
 docker build -t esm2-multi-gpu-inference:latest .
 ```
 
-<br>
-
-### 5. Run the Container
+### Run the Container
 ```bash
 # With GPUs
 docker run --gpus all -p 8000:8000 esm2-multi-gpu-inference:latest
@@ -246,110 +367,62 @@ docker run -p 8000:8000 esm2-multi-gpu-inference:latest
 
 ---
 
-## 🔧 Linting Setup (Flake8)
+## 🔧 Development
 
-This project uses `flake8` for linting with `pre-commit` hooks to ensure code quality on every commit.
-
-### 1. Create the `.flake8` configuration file
-
-Create a `.flake8` file in the project root:
-```ini
-[flake8]
-# Match black's line length
-max-line-length = 88
-
-# Match the project's style settings
-extend-ignore = 
-    # E501: line too long (handled by black)
-    E501,
-    # W503: line break before binary operator (black preference)
-    W503,
-    # E203: whitespace before ':' (black compatibility)
-    E203
-
-# Exclude directories
-exclude = 
-    .git,
-    __pycache__,
-    .venv,
-    venv,
-    build,
-    dist,
-    *.egg-info
-
-# Per-file ignores
-per-file-ignores = 
-    # Allow assert in tests
-    tests/*: S101
-
-# Show source code for errors
-show-source = true
-
-# Count errors
-count = true
-```
-
-<br>
-
-### 2. Install pre-commit and flake8
+### Linting
 ```bash
-pip install pre-commit flake8
-```
-
-<br>
-
-### 3. Create `.pre-commit-config.yaml`
-
-Create a `.pre-commit-config.yaml` file in the project root:
-```yaml
-repos:
-  - repo: https://github.com/pre-commit/mirrors-flake8
-    rev: v7.0.0
-    hooks:
-      - id: flake8
-        args: [--config=.flake8]
-
-  - repo: https://github.com/psf/black
-    rev: 24.1.1
-    hooks:
-      - id: black
-
-  - repo: https://github.com/pycqa/isort
-    rev: 5.13.2
-    hooks:
-      - id: isort
-```
-
-<br>
-
-### 4. Install the pre-commit hooks
-```bash
-pre-commit install
-```
-
-<br>
-
-### 5. Run linting manually
-```bash
-# Run flake8 on all files
-pre-commit run --all-files flake8
-
-# Run all pre-commit hooks
+# Run all linters
 pre-commit run --all-files
 
-# Or run flake8 directly
+# Run flake8 only
 flake8 app/ tests/ scripts/
 ```
 
-<br>
+### Testing
+```bash
+# Run all tests
+pytest tests/ -v
 
-### 6. Automatic linting on commit
+# Run with coverage
+pytest tests/ -v --cov=app --cov-report=term-missing
+```
 
-Once installed, pre-commit will automatically run flake8 (and other hooks) every time you run `git commit`. If any checks fail, the commit will be blocked until you fix the issues.
+---
+
+## 🚧 Future Improvements
+
+Given more time, I would implement the following enhancements:
+
+### Performance
+- **Dynamic batching with padding optimization**: Group sequences by similar length to reduce padding overhead
+- **CUDA streams**: Use multiple CUDA streams per GPU for overlapping compute and memory transfers
+- **Model quantization**: INT8 or FP16 quantization for faster inference with minimal accuracy loss
+- **TensorRT optimization**: Convert model to TensorRT for optimized GPU inference
+
+### Scalability
+- **Horizontal pod autoscaling**: Scale replicas based on request queue depth
+- **Model sharding**: For larger ESM-2 variants (3B parameters), shard across GPUs
+- **Redis-based request queue**: External queue for better load distribution across pods
+- **gRPC endpoint**: Lower latency than REST for high-frequency clients
+
+### Observability
+- **Prometheus metrics**: GPU utilization, inference latency histograms, queue depth
+- **Distributed tracing**: OpenTelemetry integration for request tracing
+- **Alerting**: PagerDuty/Slack alerts for GPU errors or latency spikes
+
+### Reliability
+- **Circuit breaker**: Fail fast when GPUs are overloaded
+- **Request prioritization**: Priority queues for different client tiers
+- **Graceful degradation**: Automatic fallback to fewer GPUs if some fail
+- **Chaos testing**: GPU failure injection for resilience testing
+
+### Developer Experience
+- **Helm chart**: Parameterized Kubernetes deployment
+- **Terraform modules**: Infrastructure as code for AWS resources
+- **Load testing suite**: Locust or k6 scripts for performance regression testing
 
 ---
 
 ## 📄 License
 
 MIT License - see [LICENSE](LICENSE) for details.
----
