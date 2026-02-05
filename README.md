@@ -74,7 +74,7 @@ kubectl apply -f k8s/esm2-8gpu-service.yaml
 
 ### Verify the pod is running
 ```bash
-kubectl get pods
+kubectl get pods -w
 ```
 
 <br>
