@@ -22,7 +22,7 @@ spec:
   nodeSelector:
     node.kubernetes.io/instance-type: g5.48xlarge
   tolerations:
-  - key: "nvidia.com/gpu
+  - key: "nvidia.com/gpu"
     operator: "Exists"
     effect: "NoSchedule"
 ---
@@ -35,7 +35,7 @@ spec:
   selector:
     app: esm2-api # Matches the pod label above
   ports:
-  - protocol:TCP
+  - protocol: TCP
     port: 8000  # Port other pods use to connect
     targetPort: 8000 # Port your container listens on
     name: api
