@@ -29,3 +29,8 @@ data:
   # HuggingFace cache directory (uses emptyDir volume)
   HF_HOME: "/app/.cache/huggingface"
   TRANSFORMERS_CACHE: "/app/.cache/huggingface"
+  
+  # Batch queue settings (for combining concurrent /predict requests)
+  BATCH_QUEUE_ENABLED: "true"
+  BATCH_QUEUE_MAX_WAIT_MS: "50"
+  BATCH_QUEUE_MAX_SIZE: "64"

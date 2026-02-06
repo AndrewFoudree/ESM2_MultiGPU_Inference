@@ -265,18 +265,7 @@ kubectl apply -f k8s/configmap.yaml
 # Deploy service
 kubectl apply -f k8s/deployment.yaml
 kubectl apply -f k8s/service.yaml
-
-# Apply Horizontal Pod Autoscaler (optional)
-kubectl apply -f k8s/hpa.yaml
 ```
-
-### Horizontal Pod Autoscaler
-
-The included HPA (`k8s/hpa.yaml`) provides:
-- **Scale range**: 1-3 replicas (each replica = 8 GPUs = 1 g5.48xlarge node)
-- **Scale up trigger**: CPU > 70% or Memory > 80%
-- **Conservative scale down**: 5-minute stabilization window to avoid losing GPU-loaded models
-- **PodDisruptionBudget**: Ensures at least 1 pod remains available during updates
 
 ### Development/Testing Pod
 ```bash
@@ -411,13 +400,13 @@ Given more time, I would implement the following enhancements:
 - **TensorRT optimization**: Convert model to TensorRT for optimized GPU inference
 
 ### Scalability
-- **Custom metrics for HPA**: The project includes a Horizontal Pod Autoscaler (`k8s/hpa.yaml`) configured for CPU/memory-based scaling. A future improvement would be scaling based on custom metrics like request queue depth or GPU utilization via Prometheus adapter
-- **Model sharding**: For larger ESM-2 variants (3B parameters), shard model layers across GPUs using tensor parallelism
+- **Horizontal pod autoscaling**: Scale replicas based on request queue depth
+- **Model sharding**: For larger ESM-2 variants (3B parameters), shard across GPUs
 - **Redis-based request queue**: External queue for better load distribution across pods
 - **gRPC endpoint**: Lower latency than REST for high-frequency clients
 
 ### Observability
-- **Prometheus metrics + Grafana dashboards**: GPU utilization, inference latency histograms, queue depth visualization
+- **Prometheus metrics**: GPU utilization, inference latency histograms, queue depth
 - **Distributed tracing**: OpenTelemetry integration for request tracing
 - **Alerting**: PagerDuty/Slack alerts for GPU errors or latency spikes
 
