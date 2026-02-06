@@ -1,6 +1,5 @@
 """
 Configuration settings for ESM-2 Multi-GPU Inference Service
-
 Uses Pydantic Settings for environment variable management.
 """
 
@@ -20,6 +19,9 @@ class Settings(BaseSettings):
     - CORS_ORIGINS: Allowed CORS origins (comma-separated)
     - LOG_LEVEL: Logging level (DEBUG, INFO, WARNING, ERROR)
     - WORKERS: Number of Uvicorn workers (for non-GPU deployment)
+    - BATCH_QUEUE_ENABLED: Enable request batching for /predict endpoint
+    - BATCH_QUEUE_MAX_WAIT_MS: Max time to wait for more requests
+    - BATCH_QUEUE_MAX_SIZE: Max requests to batch together
     """
 
     # Model settings
@@ -43,6 +45,11 @@ class Settings(BaseSettings):
 
     # GPU settings
     CUDA_VISIBLE_DEVICES: str = ""  # Empty means use all available
+
+    # Batch queue settings (for combining concurrent /predict requests)
+    BATCH_QUEUE_ENABLED: bool = True
+    BATCH_QUEUE_MAX_WAIT_MS: int = 50  # Wait up to 50ms for more requests
+    BATCH_QUEUE_MAX_SIZE: int = 64  # Max requests to combine
 
     model_config = {"env_file": ".env", "env_file_encoding": "utf-8", "extra": "ignore"}
 

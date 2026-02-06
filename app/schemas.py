@@ -1,17 +1,16 @@
 """
 Pydantic schemas for ESM-2 Multi-GPU Inference Service
-
 Defines request and response models for all API endpoints.
 """
-
 from typing import Dict, List, Optional
-
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, ConfigDict
 
 
 class HealthResponse(BaseModel):
     """Health check response model."""
-
+    
+    model_config = {"protected_namespaces": ()}
+    
     status: str = Field(
         ..., description="Service status: 'healthy', 'initializing', or 'unhealthy'"
     )
@@ -30,7 +29,7 @@ class HealthResponse(BaseModel):
 
 class PredictionRequest(BaseModel):
     """Request model for single sequence prediction."""
-
+    
     sequence: str = Field(
         ...,
         description="Protein sequence using standard amino acid codes",
@@ -74,7 +73,9 @@ class PredictionRequest(BaseModel):
 
 class PredictionResponse(BaseModel):
     """Response model for single sequence prediction."""
-
+    
+    model_config = {"protected_namespaces": ()}
+    
     sequence: str = Field(..., description="Input protein sequence")
     sequence_length: int = Field(..., description="Length of the input sequence")
     embedding: Optional[List[float]] = Field(
@@ -95,7 +96,7 @@ class PredictionResponse(BaseModel):
 
 class BatchPredictionRequest(BaseModel):
     """Request model for batch sequence prediction."""
-
+    
     sequences: List[str] = Field(
         ...,
         description="List of protein sequences (max 64)",
@@ -115,21 +116,16 @@ class BatchPredictionRequest(BaseModel):
         """Validate all protein sequences in batch."""
         valid_chars = set("ACDEFGHIKLMNPQRSTVWXY")
         validated = []
-
         for i, seq in enumerate(v):
             seq = seq.upper().strip()
             if not seq:
                 raise ValueError(f"Empty sequence at index {i}")
-
             invalid = set(seq) - valid_chars
             if invalid:
                 raise ValueError(f"Invalid characters in sequence {i}: {invalid}")
-
             if len(seq) > 1024:
                 raise ValueError(f"Sequence {i} exceeds maximum length of 1024")
-
             validated.append(seq)
-
         return validated
 
     model_config = {
@@ -151,7 +147,7 @@ class BatchPredictionRequest(BaseModel):
 
 class SequenceResult(BaseModel):
     """Result for a single sequence in batch prediction."""
-
+    
     sequence: str = Field(..., description="Input protein sequence")
     sequence_length: int = Field(..., description="Length of the sequence")
     embedding: Optional[List[float]] = Field(
@@ -181,7 +177,9 @@ class GPUDistributionInfo(BaseModel):
 
 class BatchPredictionResponse(BaseModel):
     """Response model for batch sequence prediction."""
-
+    
+    model_config = {"protected_namespaces": ()}
+    
     results: List[SequenceResult] = Field(
         ..., description="Prediction results for each sequence"
     )
